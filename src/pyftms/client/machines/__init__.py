@@ -7,6 +7,7 @@ from .cross_trainer import CrossTrainer
 from .indoor_bike import IndoorBike
 from .rower import Rower
 from .treadmill import Treadmill
+from .unknown import Unknown
 
 
 def get_machine(mt: MachineType) -> type[FitnessMachine]:
@@ -14,6 +15,9 @@ def get_machine(mt: MachineType) -> type[FitnessMachine]:
     assert len(mt) == 1
 
     match mt:
+        case MachineType.UNKNOWN:
+            return Unknown
+
         case MachineType.TREADMILL:
             return Treadmill
 
@@ -34,5 +38,6 @@ __all__ = [
     "IndoorBike",
     "Rower",
     "Treadmill",
+    "Unknown",
     "get_machine",
 ]
