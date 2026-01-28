@@ -48,7 +48,7 @@ class DataUpdater:
 
         # My device sends a lot of null packets during wakeup and sleep mode.
         # So I just filter null packets.
-        if any(self._result.values()):
+        if any(v is not None for v in self._result.values()):
             update = self._result.items() ^ self._prev.items()
 
             if update := {k: self._result[k] for k, _ in update}:

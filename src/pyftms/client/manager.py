@@ -44,7 +44,7 @@ class PropertiesManager:
         if e.event_id == "update":
             self._properties |= e.event_data
             self._live_properties.update(
-                k for k, v in e.event_data.items() if v
+                k for k, v in e.event_data.items() if v is not None
             )
         elif e.event_id == "setup":
             self._settings |= e.event_data
@@ -69,7 +69,7 @@ class PropertiesManager:
         """
         Living properties.
 
-        Properties that had a value other than zero at least once.
+        Properties that had a non-None value at least once.
         """
         return tuple(self._live_properties)
 
