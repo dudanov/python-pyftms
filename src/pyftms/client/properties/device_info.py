@@ -15,6 +15,7 @@ _CHARACTERISTICS_MAP = {
     "serial_number": "2a25",
     "sw_version": "2a28",
     "hw_version": "2a27",
+    "fw_version": "2a26",
 }
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,6 +34,8 @@ class DeviceInfo(TypedDict, total=False):
     """Software Version"""
     hw_version: str
     """Hardware Version"""
+    fw_version: str
+    """Firmware Version"""
 
 
 async def read_device_info(cli: BleakClient) -> DeviceInfo:
@@ -47,6 +50,13 @@ async def read_device_info(cli: BleakClient) -> DeviceInfo:
             if c := srv.get_characteristic(v):
                 data = await cli.read_gatt_char(c)
                 result[k] = data.decode()
+
+    # Use fw_version as sw_version fallback if sw_version is missing/placeholder
+    sw = result.get("sw_version", "").strip()
+    fw = result.get("fw_version", "").strip()
+    is_placeholder = lambda v: not v or v.strip("0") == ""
+    if is_placeholder(sw) and not is_placeholder(fw):
+        result["sw_version"] = fw
 
     _LOGGER.debug("Device Info: %s", result)
 
