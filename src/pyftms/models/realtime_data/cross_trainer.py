@@ -164,7 +164,10 @@ class CrossTrainerData(RealtimeSpeedData):
     )
     """Remaining Time"""
 
-    movement_direction: MovementDirection = dc.field(init=False)
+    movement_direction: MovementDirection = dc.field(
+        init=False,
+        metadata=model_meta(),
+    )
     """Movement Direction"""
 
     def __post_init__(self, mask: int):
