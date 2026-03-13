@@ -67,7 +67,21 @@ def get_client(
 
     if isinstance(adv_or_type, AdvertisementData):
         adv_data = adv_or_type
-        adv_or_type = get_machine_type_from_service_data(adv_or_type)
+        try:
+            adv_or_type = get_machine_type_from_service_data(adv_or_type)
+        except NotFitnessMachineError:
+            # Fallback: some devices advertise FTMS UUID but omit FTMS service data.
+            # If FTMS UUID is present, instantiate a placeholder client so we can
+            # connect and detect the real machine type from GATT characteristics.
+            # Note: post-connect code will probe notifiable data characteristics
+            # (2ACD/2ACE/2AD1/2AD2) and switch the type accordingly.
+            if normalize_uuid_str(FTMS_UUID) in (adv_data.service_uuids or []):
+                _LOGGER.debug(
+                    "FTMS UUID present but no FTMS service data; proceeding with placeholder client. Actual type will be detected after connect."
+                )
+                adv_or_type = MachineType.INDOOR_BIKE
+            else:
+                raise
 
     cls = get_machine(adv_or_type)
 
