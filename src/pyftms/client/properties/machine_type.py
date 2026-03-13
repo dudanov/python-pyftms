@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import functools
+import logging
 import operator
 from enum import Flag, auto
 
@@ -10,6 +11,8 @@ from bleak.uuids import normalize_uuid_str
 
 from ..const import FTMS_UUID
 from ..errors import NotFitnessMachineError
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class MachineFlags(Flag):
@@ -46,6 +49,9 @@ class MachineType(Flag):
     """Rower Machine."""
     INDOOR_BIKE = auto()
     """Indoor Bike Machine."""
+    UNKNOWN = auto()
+    """Unknown Machine Type. Used during discovery when device type cannot be determined
+    from advertisement data. The actual type is detected by subscribing to all data UUIDs."""
 
 
 def get_machine_type_from_service_data(
@@ -63,6 +69,18 @@ def get_machine_type_from_service_data(
     data = adv_data.service_data.get(normalize_uuid_str(FTMS_UUID))
 
     if data is None or not (2 <= len(data) <= 3):
+        # Check if device advertises FTMS UUID but lacks proper service_data
+        has_ftms_uuid = any(
+            normalize_uuid_str(uuid) == normalize_uuid_str(FTMS_UUID)
+            for uuid in adv_data.service_uuids
+        )
+        if has_ftms_uuid:
+            _LOGGER.info(
+                "Device %r advertises FTMS but lacks service_data. "
+                "Using UNKNOWN type - will detect from data UUIDs on connect.",
+                adv_data.local_name,
+            )
+            return MachineType.UNKNOWN
         raise NotFitnessMachineError(data)
 
     # Reading mandatory `Flags` and `Machine Type`.

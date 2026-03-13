@@ -27,7 +27,7 @@ from .client import (
     get_machine_type_from_service_data,
 )
 from .client.backends import FtmsEvents
-from .client.machines import CrossTrainer, IndoorBike, Rower, Treadmill
+from .client.machines import CrossTrainer, IndoorBike, Rower, Treadmill, Unknown
 from .models import (
     IndoorBikeSimulationParameters,
     ResultCode,
@@ -47,6 +47,7 @@ __all__ = [
     "IndoorBike",
     "Treadmill",
     "Rower",
+    "Unknown",
     "FtmsCallback",
     "FtmsEvents",
     "MachineType",

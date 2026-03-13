@@ -1,8 +1,11 @@
 # Copyright 2024, Sergey Dudanov
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from types import MappingProxyType
 from typing import Any, cast
+
+_LOGGER = logging.getLogger(__name__)
 
 from ..models import IndoorBikeSimulationParameters, TrainingStatusCode
 from . import const as c
@@ -44,7 +47,7 @@ class PropertiesManager:
         if e.event_id == "update":
             self._properties |= e.event_data
             self._live_properties.update(
-                k for k, v in e.event_data.items() if v
+                k for k, v in e.event_data.items() if v is not None
             )
         elif e.event_id == "setup":
             self._settings |= e.event_data
@@ -69,8 +72,13 @@ class PropertiesManager:
         """
         Living properties.
 
-        Properties that had a value other than zero at least once.
+        Properties that had a non-None value at least once.
         """
+        _LOGGER.debug(
+            "PropertiesManager.live_properties: class=%s, _live_properties=%s",
+            type(self).__name__,
+            list(self._live_properties) if hasattr(self, "_live_properties") else "NOT SET",
+        )
         return tuple(self._live_properties)
 
     @property

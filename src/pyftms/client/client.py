@@ -271,15 +271,23 @@ class FitnessMachine(ABC, PropertiesManager):
 
         # Reading necessary static fitness machine information
 
-        if not self._device_info:
+        if "_device_info" not in self.__dict__:
             self._device_info = await read_device_info(self._cli)
 
-        if not self._m_features:
-            (
-                self._m_features,
-                self._m_settings,
-                self._settings_ranges,
-            ) = await read_features(self._cli, self._machine_type)
+        if "_m_features" not in self.__dict__:
+            try:
+                (
+                    self._m_features,
+                    self._m_settings,
+                    self._settings_ranges,
+                ) = await read_features(self._cli, self._machine_type)
+            except Exception as e:
+                _LOGGER.debug(
+                    "Feature characteristic not found or failed to read; proceeding in data-only mode. Error: %s", e
+                )
+                self._m_features = MachineFeatures(0)
+                self._m_settings = MachineSettings(0)
+                self._settings_ranges = MappingProxyType({})
 
         await self._controller.subscribe(self._cli)
         await self._updater.subscribe(self._cli, self._data_uuid)
