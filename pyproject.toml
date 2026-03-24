@@ -10,7 +10,7 @@ maintainers = [
 ]
 license = "Apache-2.0"
 readme = "README.md"
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.12,<3.15"
 dependencies = [
     "bleak >= 0.21",
     "bleak-retry-connector >= 3.5",
@@ -34,6 +34,7 @@ classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 
 [project.urls]

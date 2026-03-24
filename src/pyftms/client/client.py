@@ -242,7 +242,8 @@ class FitnessMachine(ABC, PropertiesManager):
     def _on_disconnect(self, cli: BleakClient) -> None:
         _LOGGER.debug("Client disconnected. Reset updaters states.")
 
-        del self._cli
+        if hasattr(self, "_cli"):
+            del self._cli
         self._updater.reset()
         self._controller.reset()
 
