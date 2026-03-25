@@ -24,11 +24,13 @@ class DataUpdater:
         self._serializer = get_serializer(model)
         self._prev: dict[str, Any] = {}
         self._result: dict[str, Any] = {}
+        self._seen_nonzero = False
 
     def reset(self) -> None:
         """Resetting state. Call while disconnection event."""
         self._prev.clear()
         self._result.clear()
+        self._seen_nonzero = False
 
     async def subscribe(self, cli: BleakClient, uuid: str) -> None:
         """Subscribe for notification."""
@@ -46,16 +48,23 @@ class DataUpdater:
             _LOGGER.debug("'More Data' bit is set. Waiting for next data.")
             return
 
-        # My device sends a lot of null packets during wakeup and sleep mode.
-        # So I just filter null packets.
-        if any(self._result.values()):
-            update = self._result.items() ^ self._prev.items()
+        # Some devices send zero-only realtime packets during wakeup/sleep.
+        # Ignore those until we have seen a real nonzero packet, but still
+        # preserve valid nonzero-to-zero transitions after activity begins.
+        if self._result and all(value == 0 for value in self._result.values()):
+            if not self._seen_nonzero:
+                self._result.clear()
+                return
+        else:
+            self._seen_nonzero = True
 
-            if update := {k: self._result[k] for k, _ in update}:
-                _LOGGER.debug("Update data: %s", update)
-                update = cast(UpdateEventData, update)  # unsafe casting
-                update = UpdateEvent(event_id="update", event_data=update)
-                self._cb(update)
-                self._prev = self._result.copy()
+        update = self._result.items() ^ self._prev.items()
+
+        if update := {k: self._result[k] for k, _ in update}:
+            _LOGGER.debug("Update data: %s", update)
+            update = cast(UpdateEventData, update)  # unsafe casting
+            update = UpdateEvent(event_id="update", event_data=update)
+            self._cb(update)
+            self._prev = self._result.copy()
 
         self._result.clear()
