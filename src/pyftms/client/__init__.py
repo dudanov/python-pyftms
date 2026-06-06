@@ -6,10 +6,10 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from bleak import BleakScanner
+from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
-from bleak.exc import BleakDeviceNotFoundError
+from bleak.exc import BleakError, BleakDeviceNotFoundError
 from bleak.uuids import normalize_uuid_str
 
 from .backends import (
@@ -32,6 +32,7 @@ from .properties import (
     MachineType,
     MovementDirection,
     SettingRange,
+    get_machine_type_from_gatt,
     get_machine_type_from_service_data,
 )
 
@@ -97,22 +98,50 @@ async def discover_ftms_devices(
     """
 
     devices: set[str] = set()
+    ftms_uuid = normalize_uuid_str(FTMS_UUID)
 
-    async with BleakScanner(
-        service_uuids=[normalize_uuid_str(FTMS_UUID)],
-        kwargs=kwargs,
-    ) as scanner:
+    # Scan without a service_uuids filter: on Linux/BlueZ the hardware-level
+    # UUID filter only matches devices that include FTMS data in the service
+    # data field of their advertisement.  Some devices (e.g. Bodytone DU30)
+    # advertise the FTMS UUID in service_uuids but provide no service data, so
+    # they would be silently dropped.  We therefore scan for all BLE devices
+    # and filter manually.
+    async with BleakScanner(**kwargs) as scanner:
         try:
             async with asyncio.timeout(discover_time):
                 async for dev, adv in scanner.advertisement_data():
                     if dev.address in devices:
                         continue
 
+                    # Quick pre-filter: skip devices that have no FTMS UUID
+                    # in either service_data or service_uuids.
+                    if ftms_uuid not in adv.service_data and ftms_uuid not in (
+                        adv.service_uuids or ()
+                    ):
+                        continue
+
                     try:
                         machine_type = get_machine_type_from_service_data(adv)
 
                     except NotFitnessMachineError:
-                        continue
+                        # The device advertises the FTMS service UUID but does
+                        # not include machine type in its service data (e.g.
+                        # Bodytone DU30). Fall back to GATT characteristic
+                        # inspection by briefly connecting to the device.
+                        try:
+                            async with BleakClient(
+                                dev, services=[FTMS_UUID]
+                            ) as cli:
+                                machine_type = await get_machine_type_from_gatt(
+                                    cli
+                                )
+                        except (BleakError, NotFitnessMachineError, OSError):
+                            _LOGGER.debug(
+                                "Could not determine machine type for '%s' "
+                                "via GATT fallback.",
+                                dev.address,
+                            )
+                            continue
 
                     devices.add(dev.address)
 

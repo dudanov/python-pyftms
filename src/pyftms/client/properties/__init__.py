@@ -9,10 +9,15 @@ from .features import (
     SettingRange,
     read_features,
 )
-from .machine_type import MachineType, get_machine_type_from_service_data
+from .machine_type import (
+  MachineType,
+  get_machine_type_from_gatt,
+  get_machine_type_from_service_data
+)
 
 __all__ = [
     "DeviceInfo",
+    "get_machine_type_from_gatt",
     "get_machine_type_from_service_data",
     "MachineFeatures",
     "MachineSettings",

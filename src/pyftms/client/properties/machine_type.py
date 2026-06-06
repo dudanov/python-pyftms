@@ -5,10 +5,17 @@ import functools
 import operator
 from enum import Flag, auto
 
+from bleak import BleakClient
 from bleak.backends.scanner import AdvertisementData
 from bleak.uuids import normalize_uuid_str
 
-from ..const import FTMS_UUID
+from ..const import (
+    CROSS_TRAINER_DATA_UUID,
+    FTMS_UUID,
+    INDOOR_BIKE_DATA_UUID,
+    ROWER_DATA_UUID,
+    TREADMILL_DATA_UUID,
+)
 from ..errors import NotFitnessMachineError
 
 
@@ -79,3 +86,31 @@ def get_machine_type_from_service_data(
         return mt
 
     raise NotFitnessMachineError(data)
+
+
+async def get_machine_type_from_gatt(cli: BleakClient) -> MachineType:
+    """Determines fitness machine type from connected GATT characteristics.
+
+    Used as a fallback when the device advertises the FTMS service UUID but
+    does not include machine type information in its advertisement service data
+    (e.g. Bodytone DU30).
+
+    Parameters:
+        cli: Connected `BleakClient` instance with FTMS service discovered.
+
+    Returns:
+        Fitness machine type.
+    """
+
+    _UUID_TO_TYPE = (
+        (TREADMILL_DATA_UUID, MachineType.TREADMILL),
+        (CROSS_TRAINER_DATA_UUID, MachineType.CROSS_TRAINER),
+        (ROWER_DATA_UUID, MachineType.ROWER),
+        (INDOOR_BIKE_DATA_UUID, MachineType.INDOOR_BIKE),
+    )
+
+    for uuid, machine_type in _UUID_TO_TYPE:
+        if cli.services.get_characteristic(uuid) is not None:
+            return machine_type
+
+    raise NotFitnessMachineError()
