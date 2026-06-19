@@ -1,6 +1,6 @@
 version = 1
 revision = 3
-requires-python = ">=3.12, <3.14"
+requires-python = ">=3.12, <3.15"
 
 [[package]]
 name = "aiooui"
@@ -241,7 +241,7 @@ wheels = [
 
 [[package]]
 name = "pyftms"
-version = "0.4.15"
+version = "0.4.15+mw.5"
 source = { editable = "." }
 dependencies = [
     { name = "bleak" },

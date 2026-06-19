@@ -32,6 +32,8 @@ from .properties import (
     MachineType,
     MovementDirection,
     SettingRange,
+    get_machine_type_from_advertisement,
+    get_machine_type_from_gatt,
     get_machine_type_from_service_data,
 )
 
@@ -67,7 +69,7 @@ def get_client(
 
     if isinstance(adv_or_type, AdvertisementData):
         adv_data = adv_or_type
-        adv_or_type = get_machine_type_from_service_data(adv_or_type)
+        adv_or_type = get_machine_type_from_advertisement(adv_or_type)
 
     cls = get_machine(adv_or_type)
 
@@ -109,7 +111,7 @@ async def discover_ftms_devices(
                         continue
 
                     try:
-                        machine_type = get_machine_type_from_service_data(adv)
+                        machine_type = get_machine_type_from_advertisement(adv)
 
                     except NotFitnessMachineError:
                         continue
@@ -174,6 +176,9 @@ __all__ = [
     "discover_ftms_devices",
     "get_client",
     "get_client_from_address",
+    "get_machine_type_from_advertisement",
+    "get_machine_type_from_gatt",
+    "get_machine_type_from_service_data",
     "MachineType",
     "NotFitnessMachineError",
     "UpdateEvent",

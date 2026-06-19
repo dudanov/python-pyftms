@@ -19,10 +19,12 @@ class NotFitnessMachineError(FtmsError):
     functions if advertisement data was passed as an argument.
     """
 
-    def __init__(self, data: bytes | None = None) -> None:
-        if data is None:
+    def __init__(
+        self, data: bytes | None = None, reason: str | None = None
+    ) -> None:
+        if reason is None and data is None:
             reason = "No FTMS service data"
-        else:
+        elif reason is None:
             reason = f"Wrong FTMS service data: '{data.hex(" ").upper()}'"
 
         super().__init__(f"Device is not Fitness Machine. {reason}.")

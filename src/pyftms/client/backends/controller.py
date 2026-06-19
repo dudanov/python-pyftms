@@ -107,6 +107,8 @@ class MachineController:
         self._subscribed = False
         self._auth = False
         self._cb = callback
+        self._cli: BleakClient | None = None
+        self._training_status_refresh_task: asyncio.Task[None] | None = None
         self._write_lock = asyncio.Lock()
 
     async def subscribe(self, cli: BleakClient) -> None:
@@ -114,8 +116,12 @@ class MachineController:
         if self._subscribed:
             return
 
+        self._cli = cli
+
         if c := cli.services.get_characteristic(TRAINING_STATUS_UUID):
-            self._on_training_status(c, await cli.read_gatt_char(c))
+            await self._read_and_emit_training_status(
+                cli, c, initial_data=await cli.read_gatt_char(c, use_cached=False)
+            )
             await cli.start_notify(c, self._on_training_status)
 
         if c := cli.services.get_characteristic(STATUS_UUID):
@@ -130,6 +136,10 @@ class MachineController:
         """Resetting state. Call while disconnection event."""
         self._subscribed = False
         self._auth = False
+        self._cli = None
+        if self._training_status_refresh_task is not None:
+            self._training_status_refresh_task.cancel()
+            self._training_status_refresh_task = None
 
     def _on_indicate(self, c: BleakGATTCharacteristic, data: bytes) -> None:
         """Control indication callback."""
@@ -261,17 +271,109 @@ class MachineController:
         self, c: BleakGATTCharacteristic, data: bytearray
     ) -> None:
         """Training Status notification callback."""
+        fallback_event, needs_extended_read = self._build_training_status_event(
+            data, include_inline_string=False
+        )
+
+        if needs_extended_read:
+            self._schedule_training_status_refresh(c, fallback_event)
+            return
+
+        event, _ = self._build_training_status_event(
+            data, include_inline_string=True
+        )
+        self._cb(event)
+
+    def _build_training_status_event(
+        self, data: bytes | bytearray, *, include_inline_string: bool
+    ) -> tuple[UpdateEvent, bool]:
         bio = io.BytesIO(data)
         status = TrainingStatusModel._deserialize(bio)
 
         status_data = UpdateEventData(training_status=status.code)
+        needs_extended_read = (
+            TrainingStatusFlags.EXTENDED_STRING in status.flags
+        )
 
-        if TrainingStatusFlags.STRING_PRESENT in status.flags:
-            if b := bio.read():
-                status_data["training_status_string"] = b.decode(
-                    encoding="utf-8"
+        if (
+            include_inline_string
+            and TrainingStatusFlags.STRING_PRESENT in status.flags
+            and (b := bio.read())
+        ):
+            status_data["training_status_string"] = b.decode(
+                encoding="utf-8"
+            )
+
+        return UpdateEvent("update", status_data), needs_extended_read
+
+    async def _read_and_emit_training_status(
+        self,
+        cli: BleakClient,
+        c: BleakGATTCharacteristic,
+        initial_data: bytes | bytearray | None = None,
+    ) -> None:
+        # FTMS v1.0.1 section 4.10.1.2 requires the client to read the full
+        # characteristic value when the Extended String flag is set because the
+        # string may exceed the current MTU-sized value. The Wahoo KICKR CORE
+        # v2 also sets this flag.
+        data = (
+            initial_data
+            if initial_data is not None
+            else await cli.read_gatt_char(c, use_cached=False)
+        )
+        event, needs_extended_read = self._build_training_status_event(
+            data, include_inline_string=True
+        )
+
+        if needs_extended_read:
+            _LOGGER.debug(
+                "Training Status Extended String bit is set; using an "
+                "explicit characteristic read to retrieve the full value."
+            )
+            if initial_data is not None:
+                data = await cli.read_gatt_char(c, use_cached=False)
+                event, _ = self._build_training_status_event(
+                    data, include_inline_string=True
                 )
 
-        event = UpdateEvent(event_id="update", event_data=status_data)
-
         self._cb(event)
+
+    def _schedule_training_status_refresh(
+        self,
+        c: BleakGATTCharacteristic,
+        fallback_event: UpdateEvent,
+    ) -> None:
+        if self._cli is None:
+            self._cb(fallback_event)
+            return
+
+        if (
+            self._training_status_refresh_task is not None
+            and not self._training_status_refresh_task.done()
+        ):
+            _LOGGER.debug(
+                "Training Status refresh already in flight; skipping "
+                "duplicate extended-string read."
+            )
+            return
+
+        async def _refresh() -> None:
+            try:
+                await self._read_and_emit_training_status(self._cli, c)
+            except Exception:
+                _LOGGER.warning(
+                    "Failed to refresh Training Status with Extended String; "
+                    "emitting status code without training_status_string.",
+                    exc_info=True,
+                )
+                self._cb(fallback_event)
+
+        task = asyncio.create_task(_refresh())
+        task.add_done_callback(self._clear_training_status_refresh_task)
+        self._training_status_refresh_task = task
+
+    def _clear_training_status_refresh_task(
+        self, task: asyncio.Task[None]
+    ) -> None:
+        if self._training_status_refresh_task is task:
+            self._training_status_refresh_task = None

@@ -8,6 +8,9 @@
 
 **Step Climber** and **Stair Climber** machines are **not supported** due to incomplete protocol information and low popularity.
 
+This fork publishes production-ready fixes used by the forked Home Assistant FTMS
+integration. The corresponding fork release for this branch is `v0.4.15+mw.5`.
+
 ## Requirments
 
 1. `bleak`
@@ -19,6 +22,13 @@
 pip install pyftms
 ```
 
+## Install the forked release
+
+```bash
+pip install "pyftms @ git+https://github.com/michaelw/python-pyftms.git@v0.4.15+mw.5"
+```
+
 ## Usage
 
-Please read API [documentation](https://dudanov.github.io/python-pyftms/pyftms.html).
+Please read the fork README and source on
+[GitHub](https://github.com/michaelw/python-pyftms).

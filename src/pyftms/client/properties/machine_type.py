@@ -5,10 +5,17 @@ import functools
 import operator
 from enum import Flag, auto
 
+from bleak import BleakClient
 from bleak.backends.scanner import AdvertisementData
 from bleak.uuids import normalize_uuid_str
 
-from ..const import FTMS_UUID
+from ..const import (
+    CROSS_TRAINER_DATA_UUID,
+    FTMS_UUID,
+    INDOOR_BIKE_DATA_UUID,
+    ROWER_DATA_UUID,
+    TREADMILL_DATA_UUID,
+)
 from ..errors import NotFitnessMachineError
 
 
@@ -48,6 +55,14 @@ class MachineType(Flag):
     """Indoor Bike Machine."""
 
 
+GATT_DATA_UUID_TO_MACHINE_TYPE = (
+    (TREADMILL_DATA_UUID, MachineType.TREADMILL),
+    (CROSS_TRAINER_DATA_UUID, MachineType.CROSS_TRAINER),
+    (ROWER_DATA_UUID, MachineType.ROWER),
+    (INDOOR_BIKE_DATA_UUID, MachineType.INDOOR_BIKE),
+)
+
+
 def get_machine_type_from_service_data(
     adv_data: AdvertisementData,
 ) -> MachineType:
@@ -79,3 +94,35 @@ def get_machine_type_from_service_data(
         return mt
 
     raise NotFitnessMachineError(data)
+
+
+def get_machine_type_from_advertisement(
+    adv_data: AdvertisementData,
+) -> MachineType:
+    """Returns fitness machine type from Bluetooth advertisement data.
+
+    Some FTMS devices advertise the FTMS service UUID but omit FTMS service
+    data. Treat those as indoor bikes until GATT probing can detect the real
+    machine type after connection.
+    """
+
+    try:
+        return get_machine_type_from_service_data(adv_data)
+
+    except NotFitnessMachineError:
+        if normalize_uuid_str(FTMS_UUID) in (adv_data.service_uuids or []):
+            return MachineType.INDOOR_BIKE
+
+        raise
+
+
+def get_machine_type_from_gatt(cli: BleakClient) -> MachineType:
+    """Returns fitness machine type from GATT data characteristics."""
+
+    for uuid, machine_type in GATT_DATA_UUID_TO_MACHINE_TYPE:
+        if cli.services.get_characteristic(uuid) is not None:
+            return machine_type
+
+    raise NotFitnessMachineError(
+        reason="No supported FTMS data characteristic found"
+    )

@@ -1,6 +1,6 @@
 [project]
 name = "pyftms"
-version = "0.4.15"
+version = "0.4.15+mw.5"
 description = "Bluetooth Fitness Machine Service async client library."
 authors = [
   { name = "Sergey Dudanov", email = "sergey.dudanov@gmail.com" },
@@ -10,7 +10,7 @@ maintainers = [
 ]
 license = "Apache-2.0"
 readme = "README.md"
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.12,<3.15"
 dependencies = [
     "bleak >= 0.21",
     "bleak-retry-connector >= 3.5",
@@ -34,13 +34,14 @@ classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 
 [project.urls]
-"Documentation" = "https://github.com/dudanov/pyftms"
-"Home Page" = "https://github.com/dudanov/pyftms"
-"Issue Tracker" = "https://github.com/dudanov/pyftms/issues"
-"Source Code" = "https://github.com/dudanov/pyftms.git"
+"Documentation" = "https://github.com/michaelw/python-pyftms"
+"Home Page" = "https://github.com/michaelw/python-pyftms"
+"Issue Tracker" = "https://github.com/michaelw/python-pyftms/issues"
+"Source Code" = "https://github.com/michaelw/python-pyftms.git"
 
 [project.optional-dependencies]
 docs = [
