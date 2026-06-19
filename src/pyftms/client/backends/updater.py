@@ -46,16 +46,24 @@ class DataUpdater:
             _LOGGER.debug("'More Data' bit is set. Waiting for next data.")
             return
 
+        result = self._result.copy()
+        prev = self._prev.copy()
+
         # My device sends a lot of null packets during wakeup and sleep mode.
         # So I just filter null packets.
-        if any(self._result.values()):
-            update = self._result.items() ^ self._prev.items()
+        if any(result.values()):
+            missing = object()
+            update = {
+                key: value
+                for key, value in result.items()
+                if prev.get(key, missing) != value
+            }
 
-            if update := {k: self._result[k] for k, _ in update}:
+            if update:
                 _LOGGER.debug("Update data: %s", update)
                 update = cast(UpdateEventData, update)  # unsafe casting
                 update = UpdateEvent(event_id="update", event_data=update)
                 self._cb(update)
-                self._prev = self._result.copy()
+                self._prev = result
 
         self._result.clear()

@@ -61,8 +61,8 @@ class PropertiesManager:
 
     @property
     def properties(self) -> UpdateEventData:
-        """Read-only updateable properties mapping."""
-        return cast(UpdateEventData, MappingProxyType(self._properties))
+        """Read-only snapshot of properties mapping."""
+        return cast(UpdateEventData, MappingProxyType(self._properties.copy()))
 
     @property
     def live_properties(self) -> tuple[str, ...]:
@@ -75,8 +75,8 @@ class PropertiesManager:
 
     @property
     def settings(self) -> SetupEventData:
-        """Read-only updateable settings mapping."""
-        return cast(SetupEventData, MappingProxyType(self._settings))
+        """Read-only snapshot of settings mapping."""
+        return cast(SetupEventData, MappingProxyType(self._settings.copy()))
 
     @property
     def training_status(self) -> TrainingStatusCode:
