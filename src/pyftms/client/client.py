@@ -18,10 +18,14 @@ from ..models import (
     ControlCode,
     ControlModel,
     IndoorBikeSimulationParameters,
+    CrossTrainerData,
+    IndoorBikeData,
     RealtimeData,
+    RowerData,
     ResultCode,
     SpinDownControlCode,
     StopPauseCode,
+    TreadmillData,
 )
 from . import const as c
 from .backends import DataUpdater, FtmsCallback, MachineController, UpdateEvent
@@ -36,6 +40,7 @@ from .properties import (
     read_features,
 )
 from .properties.device_info import DIS_UUID
+from .errors import CharacteristicNotFound
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -274,15 +279,77 @@ class FitnessMachine(ABC, PropertiesManager):
         if not self._device_info:
             self._device_info = await read_device_info(self._cli)
 
+        # Post-connect machine type/data characteristic probe for UUID-only fallback
+        try:
+            svc = self._cli.services.get_service(c.FTMS_UUID)
+        except Exception:
+            svc = None
+
+        if svc is not None:
+            # Determine which real-time data characteristic is present and notifiable
+            mt_map = [
+                (c.INDOOR_BIKE_DATA_UUID, MachineType.INDOOR_BIKE, IndoorBikeData),
+                (c.TREADMILL_DATA_UUID, MachineType.TREADMILL, TreadmillData),
+                (c.CROSS_TRAINER_DATA_UUID, MachineType.CROSS_TRAINER, CrossTrainerData),
+                (c.ROWER_DATA_UUID, MachineType.ROWER, RowerData),
+            ]
+            selected = None
+            for uuid, mt, model in mt_map:
+                ch = svc.get_characteristic(uuid)
+                if ch and "notify" in getattr(ch, "properties", []):
+                    selected = (uuid, mt, model)
+                    break
+
+            if selected:
+                uuid, mt, model = selected
+                if getattr(self, "_data_uuid", None) != uuid or self._data_model is not model:
+                    _LOGGER.debug(
+                        "Detected data characteristic %s; switching machine type to %s",
+                        uuid,
+                        mt.name,
+                    )
+                    self._machine_type = mt
+                    self._data_uuid = uuid
+                    self._updater = DataUpdater(model, self._on_event)
+
         if not self._m_features:
-            (
-                self._m_features,
-                self._m_settings,
-                self._settings_ranges,
-            ) = await read_features(self._cli, self._machine_type)
+            try:
+                (
+                    self._m_features,
+                    self._m_settings,
+                    self._settings_ranges,
+                ) = await read_features(self._cli, self._machine_type)
+            except CharacteristicNotFound:
+                # Data-only fallback: proceed without features/settings when
+                # devices expose real-time data but omit FTMS Feature characteristic.
+                _LOGGER.debug(
+                    "Feature characteristic not found; proceeding in data-only mode."
+                )
+                self._m_features = MachineFeatures(0)
+                self._m_settings = MachineSettings(0)
+                self._settings_ranges = MappingProxyType({})
 
         await self._controller.subscribe(self._cli)
-        await self._updater.subscribe(self._cli, self._data_uuid)
+        try:
+            await self._updater.subscribe(self._cli, self._data_uuid)
+        except Exception as exc:
+            # Some stacks report characteristics that are not actually notifiable.
+            # Try Indoor Bike Data as a common fallback if available.
+            if self._data_uuid != c.INDOOR_BIKE_DATA_UUID and (
+                self._cli.services.get_characteristic(c.INDOOR_BIKE_DATA_UUID)
+            ):
+                _LOGGER.debug(
+                    "Subscribe failed on %s (%s). Falling back to %s.",
+                    self._data_uuid,
+                    exc,
+                    c.INDOOR_BIKE_DATA_UUID,
+                )
+                self._machine_type = MachineType.INDOOR_BIKE
+                self._data_uuid = c.INDOOR_BIKE_DATA_UUID
+                self._updater = DataUpdater(IndoorBikeData, self._on_event)
+                await self._updater.subscribe(self._cli, self._data_uuid)
+            else:
+                raise
 
     # COMMANDS
 
