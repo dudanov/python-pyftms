@@ -162,6 +162,11 @@ class MachineController:
 
         await self.subscribe(cli)
 
+        # The spec requires Write, but some machines (e.g. Moov Walk Plus)
+        # only permit Write Without Response on the control point.
+        c = cli.services.get_characteristic(CONTROL_POINT_UUID)
+        response = c is None or "write" in c.properties
+
         async with self._write_lock:
             self._indicate = asyncio.Future()
             _, resp = await asyncio.wait_for(
@@ -169,7 +174,7 @@ class MachineController:
                     cli.write_gatt_char(
                         CONTROL_POINT_UUID,
                         bio.getvalue(),
-                        True,
+                        response,
                     ),
                     self._indicate,
                 ),
