@@ -115,7 +115,6 @@ class MachineController:
             return
 
         if c := cli.services.get_characteristic(TRAINING_STATUS_UUID):
-            self._on_training_status(c, await cli.read_gatt_char(c))
             await cli.start_notify(c, self._on_training_status)
 
         if c := cli.services.get_characteristic(STATUS_UUID):
